@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zownium Key Manager</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--a1:#8b6cff;--a2:#38d9ff;--a3:#ff7ad9;--a4:#ffc66b;--bg:#050506;--fg:#f5f5f7;--mut:#8f8f99;--ln:rgba(255,255,255,.09);--e:cubic-bezier(.16,1,.3,1);
+ --ir:linear-gradient(100deg,var(--a1),var(--a2),var(--a3),var(--a4),var(--a1));--ok:#7dffb5;--warn:#ffc66b;--bad:#ff6b81;color-scheme:dark}
+*{margin:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{background:var(--bg)}
+body{background:var(--bg);color:var(--fg);font:400 15px/1.55 'Inter Tight',system-ui,-apple-system,sans-serif;overflow-x:hidden;padding:env(safe-area-inset-top,0) 0 calc(env(safe-area-inset-bottom,0px) + 90px)}
+.ir{background:var(--ir) 0 0/300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:fw 7s linear infinite}
+@keyframes fw{to{background-position:-300% 0}}@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes rv{from{opacity:0;transform:translateY(24px) scale(.98)}}
+.amb{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none}
+.amb i{position:absolute;width:60vmax;height:60vmax;border-radius:50%;background:radial-gradient(closest-side,color-mix(in srgb,var(--k) 30%,transparent),transparent);will-change:transform;animation:fl 28s ease-in-out infinite alternate}
+.amb::after{content:"";position:absolute;inset:0;background:linear-gradient(var(--ln) 1px,transparent 1px) 0 0/84px 84px,linear-gradient(90deg,var(--ln) 1px,transparent 1px) 0 0/84px 84px;-webkit-mask:radial-gradient(70% 55% at 50% 20%,#000,transparent);mask:radial-gradient(70% 55% at 50% 20%,#000,transparent);opacity:.38}
+@keyframes fl{to{transform:translate3d(10vw,8vh,0) scale(1.18)}}
+.gl,.card,.item,.stat{position:relative;border:1px solid rgba(255,255,255,.12);background:linear-gradient(160deg,rgba(255,255,255,.09),rgba(255,255,255,.02));-webkit-backdrop-filter:blur(24px) saturate(1.6);backdrop-filter:blur(24px) saturate(1.6);box-shadow:0 20px 60px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.16),inset 0 -1px 0 rgba(255,255,255,.04)}
+.wrap{max-width:780px;margin:0 auto;padding:22px 16px 20px}
+.top{display:flex;align-items:center;gap:12px;margin-bottom:26px;animation:rv .9s var(--e) backwards}
+.top .lg{width:38px;height:38px;border-radius:12px;background:#fff;color:#000;display:grid;place-items:center;font-weight:800;font-size:19px;box-shadow:0 0 28px color-mix(in srgb,var(--a2) 60%,#fff)}
+h1{font-weight:600;font-size:clamp(1.6rem,6vw,2.3rem);letter-spacing:-.045em;line-height:1.05}
+.sub{color:var(--mut);font-size:13px;margin-top:2px}
+.card{border-radius:24px;padding:20px;margin-bottom:14px;animation:rv .9s var(--e) backwards}
+.card:nth-of-type(2){animation-delay:.08s}
+label{display:block;font-size:11px;color:var(--mut);margin:0 0 7px;text-transform:uppercase;letter-spacing:.2em}
+input,select{width:100%;background:rgba(255,255,255,.05);color:var(--fg);border:1px solid var(--ln);border-radius:14px;padding:13px 14px;font:inherit;outline:none;transition:border-color .3s,background .3s}
+input:focus,select:focus{border-color:var(--a2);background:rgba(255,255,255,.08)}
+select option{background:#14141a}
+.row{display:flex;gap:10px}.row>*{flex:1;min-width:0}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+.chip{font:inherit;font-size:13px;padding:8px 15px;border-radius:99px;border:1px solid var(--ln);background:rgba(255,255,255,.04);color:#d0d0d6;cursor:pointer;transition:all .3s}
+.chip:hover,.chip.on{color:#fff;background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.25)}
+button{font:500 15px/1 'Inter Tight',system-ui,sans-serif;cursor:pointer;border:1px solid #fff;border-radius:99px;padding:15px 26px;color:#000;background:#fff;box-shadow:0 0 44px color-mix(in srgb,var(--a2) 32%,transparent);transition:transform .5s var(--e),background .3s}
+button:hover{background:#ececf0}button:active{transform:scale(.97)}
+button.ghost{background:rgba(255,255,255,.06);border-color:var(--ln);color:var(--fg);box-shadow:none}
+button.ghost:hover{background:rgba(255,255,255,.13)}
+button.sm{padding:10px 17px;font-size:13.5px}
+button.danger{background:transparent;border-color:color-mix(in srgb,var(--bad) 60%,transparent);color:var(--bad);box-shadow:none}
+.chip{box-shadow:none}
+.full{width:100%;margin-top:6px;position:relative;overflow:hidden;border:0;background:none;color:#fff;isolation:isolate;box-shadow:none}
+.full::before{content:"";position:absolute;inset:-160%;z-index:-2;background:conic-gradient(from 0deg,transparent 0 66%,var(--a1),var(--a2),var(--a3),transparent);animation:spin 3.2s linear infinite}
+.full::after{content:"";position:absolute;inset:1px;border-radius:inherit;background:#0b0b0e;z-index:-1}
+.full:hover{background:none}
+.result{display:none;margin-top:16px;padding:16px;border-radius:18px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14)}
+.result.show{display:block;animation:rv .7s var(--e)}
+.keybig{font:700 clamp(1.3rem,6vw,1.8rem)/1.25 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.04em;word-break:break-all;background:var(--ir) 0 0/300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:fw 7s linear infinite}
+.meta{color:var(--mut);font-size:13px;margin:6px 0 12px}
+.tabs{display:flex;gap:8px;overflow-x:auto;margin:12px 0 0}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.stat{border-radius:20px;padding:16px 10px;text-align:center}
+.stat b{display:block;font-size:2rem;font-weight:600;letter-spacing:-.05em;line-height:1.1;background:var(--ir) 0 0/300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:fw 7s linear infinite}
+.stat small{color:var(--mut);font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+.item{border-radius:22px;padding:16px;margin-bottom:10px;animation:rv .6s var(--e) backwards;transition:transform .5s var(--e)}
+.item:hover{transform:translateY(-3px)}
+.item .top{margin:0;justify-content:space-between;animation:none}
+.name{font-weight:600;font-size:17px;letter-spacing:-.02em;word-break:break-word}
+.badge{font-size:12px;padding:5px 12px;border-radius:99px;border:1px solid;white-space:nowrap;background:rgba(255,255,255,.04)}
+.b-ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 55%,transparent)}
+.b-exp{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 55%,transparent)}
+.b-rev{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 55%,transparent)}
+.k{font:13px ui-monospace,Menlo,Consolas,monospace;color:#cfcfd6;margin:8px 0 4px;word-break:break-all;letter-spacing:.04em}
+.acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.note{font-size:13px;color:var(--mut);background:rgba(255,255,255,.04);border:1px solid var(--ln);border-radius:16px;padding:12px 14px;margin-top:14px}
+.note b{color:var(--fg)}
+.empty{text-align:center;color:var(--mut);padding:30px 0}
+.toast{white-space:nowrap;position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(30px);padding:10px 18px;border-radius:99px;opacity:0;transition:.4s var(--e);pointer-events:none;z-index:99;font-size:14px}
+.toast.show{opacity:1;transform:translateX(-50%)}
+details summary{cursor:pointer;color:var(--mut);font-size:13px}
+.dock{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:6px;padding:7px 8px 7px 16px;border-radius:99px;font-size:12px;color:var(--mut);letter-spacing:.14em;text-transform:uppercase;border:1px solid rgba(255,255,255,.12);background:linear-gradient(160deg,rgba(255,255,255,.09),rgba(255,255,255,.02));-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)}
+.dock button{all:unset;box-sizing:border-box;width:30px;height:30px;border-radius:50%;cursor:pointer;border:2px solid transparent;background-clip:padding-box;transition:transform .5s cubic-bezier(.34,1.56,.64,1)}
+.dock button:hover{transform:scale(1.15)}.dock button.a{box-shadow:0 0 0 2px #fff,0 0 20px var(--s1)}
+@media(max-width:520px){.dock span{display:none}.dock{padding-left:8px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01s!important;animation-iteration-count:1!important;transition-duration:.01s!important}}
+</style>
+</head>
+<body>
+<div class="amb"><i style="left:-18vmax;top:-22vmax;--k:var(--a1)"></i><i style="right:-24vmax;top:4vh;--k:var(--a2);animation-delay:-9s"></i><i style="left:18vw;bottom:-38vmax;--k:var(--a3);animation-delay:-17s"></i></div>
+<div class="wrap">
+  <div class="top"><div class="lg">Z</div><div><h1><span class="ir">Zownium</span> Keys</h1>
+  <div class="sub">Newgen v1.2.4 key system &middot; offline, data sirf is device me</div></div></div>
+
+  <div class="card">
+    <div class="row">
+      <div><label>Bande ka naam</label><input id="name" placeholder="e.g. argon" autocomplete="off" autocapitalize="off"></div>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div class="row">
+      <div><label>Duration</label><input id="amt" type="number" min="1" value="60" inputmode="numeric"></div>
+      <div><label>Unit</label>
+        <select id="unit">
+          <option value="m">Minutes</option><option value="h">Hours</option>
+          <option value="d" selected>Days</option><option value="w">Weeks</option>
+        </select>
+      </div>
+    </div>
+    <button class="full" id="gen">Key Generate karo</button>
+    <div class="result" id="result">
+      <div class="keybig" id="rkey"></div>
+      <div class="meta" id="rmeta"></div>
+      <div class="acts">
+        <button class="sm" id="cpKey">Key copy</button>
+        <button class="sm ghost" id="cpLogin">Name + Key copy</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><b id="sAct">0</b><small>Active</small></div>
+    <div class="stat"><b id="sExp">0</b><small>Expired</small></div>
+    <div class="stat"><b id="sRev">0</b><small>Revoked</small></div>
+  </div>
+
+  <div class="card">
+    <input id="search" placeholder="Naam ya key search karo">
+    <div class="chips tabs" id="tabs" style="margin-bottom:0"></div>
+  </div>
+
+  <div id="list"></div>
+
+  <div class="card">
+    <div class="acts" style="margin-top:0">
+      <button class="sm ghost" id="exp">Export CSV</button>
+      <button class="sm ghost" id="imp">Import CSV</button>
+      <input type="file" id="file" accept=".csv,text/csv,text/plain" style="display:none">
+    </div>
+    <div class="note">
+      <b>Revoke ke baare me:</b> client abhi offline check karta hai, to key expire date se pehle
+      sach me band nahi ki ja sakti. "Revoke" sirf yahan list me mark karta hai. Asli revoke ke liye
+      client me ek online check lagana padega.
+    </div>
+    <details style="margin-top:12px"><summary>Secret (client ke Auth.java wala hi hona chahiye)</summary>
+      <input id="secret" style="margin-top:8px" autocomplete="off">
+    </details>
+  </div>
+</div>
+<div class="toast gl" id="toast"></div>
+<div class="dock"><span>Theme</span><div id="dk" style="display:flex;gap:6px"></div></div>
+
+<script>
+/* ===== CORE (zkey.py / Auth.java ke format ke saath same) ===== */
+//CORE_START
+var DEFAULT_SECRET = "51d4715c2f82072b9f15bba9d49e1d1aa48ffc92cc12e442";
+var EPOCH = 1735689600;
+var B32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+function utf8(s){var o=[];for(var i=0;i<s.length;i++){var c=s.charCodeAt(i);if(c<128)o.push(c);else if(c<2048){o.push(192|c>>6,128|c&63);}else{o.push(224|c>>12,128|c>>6&63,128|c&63);}}return o;}
+
+function sha256(bytes){
+  var K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  var H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  var l=bytes.length, m=bytes.slice();
+  m.push(0x80);
+  while(m.length%64!==56)m.push(0);
+  var hi=Math.floor(l/0x20000000), lo=(l<<3)>>>0;
+  m.push(hi>>>24&255,hi>>>16&255,hi>>>8&255,hi&255,lo>>>24&255,lo>>>16&255,lo>>>8&255,lo&255);
+  function ror(x,n){return (x>>>n)|(x<<(32-n));}
+  for(var off=0;off<m.length;off+=64){
+    var w=new Array(64);
+    for(var i=0;i<16;i++)w[i]=((m[off+4*i]<<24)|(m[off+4*i+1]<<16)|(m[off+4*i+2]<<8)|m[off+4*i+3])>>>0;
+    for(i=16;i<64;i++){
+      var s0=ror(w[i-15],7)^ror(w[i-15],18)^(w[i-15]>>>3);
+      var s1=ror(w[i-2],17)^ror(w[i-2],19)^(w[i-2]>>>10);
+      w[i]=(w[i-16]+s0+w[i-7]+s1)>>>0;
+    }
+    var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+    for(i=0;i<64;i++){
+      var S1=ror(e,6)^ror(e,11)^ror(e,25), ch=(e&f)^(~e&g);
+      var t1=(h+S1+ch+K[i]+w[i])>>>0;
+      var S0=ror(a,2)^ror(a,13)^ror(a,22), mj=(a&b)^(a&c)^(b&c);
+      var t2=(S0+mj)>>>0;
+      h=g;g=f;f=e;e=(d+t1)>>>0;d=c;c=b;b=a;a=(t1+t2)>>>0;
+    }
+    H[0]=(H[0]+a)>>>0;H[1]=(H[1]+b)>>>0;H[2]=(H[2]+c)>>>0;H[3]=(H[3]+d)>>>0;
+    H[4]=(H[4]+e)>>>0;H[5]=(H[5]+f)>>>0;H[6]=(H[6]+g)>>>0;H[7]=(H[7]+h)>>>0;
+  }
+  var out=[];
+  for(i=0;i<8;i++)out.push(H[i]>>>24&255,H[i]>>>16&255,H[i]>>>8&255,H[i]&255);
+  return out;
+}
+
+function hmac256(key,msg){
+  if(key.length>64)key=sha256(key);
+  var ip=[],op=[];
+  for(var i=0;i<64;i++){var kb=i<key.length?key[i]:0;ip.push(kb^0x36);op.push(kb^0x5c);}
+  return sha256(op.concat(sha256(ip.concat(msg))));
+}
+
+function b32enc(bytes){
+  var out="",acc=0,bits=0;
+  for(var i=0;i<bytes.length;i++){
+    acc=(acc<<8)|bytes[i];bits+=8;
+    while(bits>=5){bits-=5;out+=B32[(acc>>bits)&31];}
+    acc&=(1<<bits)-1;
+  }
+  if(bits>0)out+=B32[(acc<<(5-bits))&31];
+  return out;
+}
+
+function randBytes(n){
+  var a=new Uint8Array(n);
+  (typeof crypto!=="undefined"&&crypto.getRandomValues)?crypto.getRandomValues(a):a.forEach(function(_,i){a[i]=Math.floor(Math.random()*256);});
+  return Array.prototype.slice.call(a);
+}
+
+/* expSec = absolute expiry, unix seconds */
+function makeKey(expSec, secret){
+  var minutes=Math.floor((expSec-EPOCH)/60);
+  var body=[minutes>>>24&255,minutes>>>16&255,minutes>>>8&255,minutes&255].concat(randBytes(2));
+  var sig=hmac256(utf8(secret||DEFAULT_SECRET),body).slice(0,6);
+  var s=b32enc(body.concat(sig));
+  return [s.slice(0,5),s.slice(5,10),s.slice(10,15),s.slice(15,20)].join("-");
+}
+
+/* returns expiry unix seconds, or -1 if invalid (same rules as Auth.verify) */
+function verifyKey(raw,secret){
+  var s=String(raw||"").toUpperCase().replace(/[- ]/g,"");
+  if(s.length!==20)return -1;
+  var acc=0,bits=0,b=[];
+  for(var i=0;i<20&&b.length<12;i++){
+    var v=B32.indexOf(s[i]);if(v<0)return -1;
+    acc=((acc<<5)|v)&0xffff;bits+=5;
+    if(bits>=8){bits-=8;b.push((acc>>bits)&255);}
+  }
+  var sig=hmac256(utf8(secret||DEFAULT_SECRET),b.slice(0,6));
+  var diff=0;for(i=0;i<6;i++)diff|=sig[i]^b[6+i];
+  if(diff)return -1;
+  var minutes=b[0]*16777216+b[1]*65536+b[2]*256+b[3];
+  return EPOCH+minutes*60;
+}
+
+function leftText(expSec,nowSec){
+  var r=Math.floor(expSec-nowSec);
+  if(r<=0)return "EXPIRED";
+  var d=Math.floor(r/86400),h=Math.floor(r%86400/3600),m=Math.floor(r%3600/60),s=r%60;
+  if(d>0)return d+"d "+h+"h "+m+"m left";
+  if(h>0)return h+"h "+m+"m "+s+"s left";
+  return m+"m "+s+"s left";
+}
+//CORE_END
+
+/* ===== APP ===== */
+(function(){
+  if(typeof document==="undefined")return;
+  var $=function(id){return document.getElementById(id);};
+  var STORE="zownium_key_ledger_v1", SKEY="zownium_key_secret_v1";
+  var mem={};
+  function sget(k){try{return localStorage.getItem(k);}catch(e){return mem[k]||null;}}
+  function sset(k,v){try{localStorage.setItem(k,v);}catch(e){mem[k]=v;}}
+
+  var ledger=[];try{ledger=JSON.parse(sget(STORE)||"[]");}catch(e){ledger=[];}
+  var secret=sget(SKEY)||DEFAULT_SECRET;
+  var filter="all", lastKey=null, lastName="";
+  var UNIT={m:60,h:3600,d:86400,w:604800};
+
+  function save(){sset(STORE,JSON.stringify(ledger));}
+  function nowSec(){return Math.floor(Date.now()/1000);}
+  function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+  function fmtDate(s){var d=new Date(s*1000);return d.toLocaleString([], {day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});}
+  var tt;function toast(t){var el=$("toast");el.textContent=t;el.classList.add("show");clearTimeout(tt);tt=setTimeout(function(){el.classList.remove("show");},1600);}
+  function copy(text){
+    function fb(){var t=document.createElement("textarea");t.value=text;t.style.position="fixed";t.style.opacity="0";document.body.appendChild(t);t.select();try{document.execCommand("copy");toast("Copied");}catch(e){toast("Copy fail, manually select karo");}document.body.removeChild(t);}
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(function(){toast("Copied");},fb);else fb();
+  }
+  function status(e){if(e.revoked)return "rev";return e.exp<=nowSec()?"exp":"act";}
+
+  // quick chips
+  [["1 din","1","d"],["7 din","7","d"],["30 din","30","d"],["60 din","60","d"],["90 din","90","d"],["1 ghanta","1","h"]].forEach(function(c){
+    var b=document.createElement("button");b.className="chip";b.textContent=c[0];
+    b.onclick=function(){$("amt").value=c[1];$("unit").value=c[2];};
+    $("chips").appendChild(b);
+  });
+  [["all","Sab"],["act","Active"],["exp","Expired"],["rev","Revoked"]].forEach(function(t){
+    var b=document.createElement("button");b.className="chip"+(t[0]==="all"?" on":"");b.textContent=t[1];b.dataset.f=t[0];
+    b.onclick=function(){filter=t[0];Array.prototype.forEach.call($("tabs").children,function(x){x.classList.toggle("on",x.dataset.f===filter);});render();};
+    $("tabs").appendChild(b);
+  });
+
+  $("secret").value=secret;
+  $("secret").onchange=function(){var v=$("secret").value.trim();if(v){secret=v;sset(SKEY,v);toast("Secret save hua");}};
+
+  $("gen").onclick=function(){
+    var name=$("name").value.trim();
+    var amt=parseInt($("amt").value,10);
+    if(!name){toast("Naam daalo");$("name").focus();return;}
+    if(!(amt>0)){toast("Duration sahi daalo");return;}
+    var created=nowSec(), exp=created+amt*UNIT[$("unit").value];
+    var key=makeKey(exp,secret);
+    if(verifyKey(key,secret)!==Math.floor((exp-EPOCH)/60)*60+EPOCH){toast("Internal error, secret check karo");return;}
+    ledger.unshift({name:name,key:key,created:created,exp:exp,revoked:false});
+    save();lastKey=key;lastName=name;
+    $("rkey").textContent=key;
+    $("rmeta").textContent=name+" · expires "+fmtDate(exp)+" · "+leftText(exp,nowSec());
+    $("result").classList.add("show");
+    render();
+  };
+  $("cpKey").onclick=function(){if(lastKey)copy(lastKey);};
+  $("cpLogin").onclick=function(){if(lastKey)copy("Name: "+lastName+"\nKey: "+lastKey);};
+  $("search").oninput=render;
+
+  function render(){
+    var q=$("search").value.trim().toLowerCase();
+    var a=0,e=0,r=0;ledger.forEach(function(x){var s=status(x);if(s==="act")a++;else if(s==="exp")e++;else r++;});
+    $("sAct").textContent=a;$("sExp").textContent=e;$("sRev").textContent=r;
+    var items=ledger.map(function(x,i){return {x:x,i:i};}).filter(function(o){
+      var s=status(o.x);
+      if(filter!=="all"&&s!==filter)return false;
+      return !q||o.x.name.toLowerCase().indexOf(q)>=0||o.x.key.toLowerCase().indexOf(q)>=0;
+    });
+    if(!items.length){$("list").innerHTML='<div class="empty">Koi key nahi mili</div>';return;}
+    $("list").innerHTML=items.map(function(o){
+      var x=o.x,s=status(x);
+      var badge=s==="act"?'<span class="badge b-ok" data-exp="'+x.exp+'">'+leftText(x.exp,nowSec())+'</span>':
+                s==="exp"?'<span class="badge b-exp">EXPIRED</span>':'<span class="badge b-rev">REVOKED</span>';
+      return '<div class="item" style="animation-delay:'+Math.min(o.i,8)*40+'ms"><div class="top"><div class="name">'+esc(x.name)+'</div>'+badge+'</div>'+
+        '<div class="k">'+esc(x.key)+'</div>'+
+        '<div class="meta" style="margin:0">Bani: '+fmtDate(x.created)+' · Expiry: '+fmtDate(x.exp)+'</div>'+
+        '<div class="acts"><button class="sm" data-a="copy" data-i="'+o.i+'">Copy key</button>'+
+        '<button class="sm ghost" data-a="copyl" data-i="'+o.i+'">Name + Key</button>'+
+        '<button class="sm ghost" data-a="rev" data-i="'+o.i+'">'+(x.revoked?"Un-revoke":"Revoke mark")+'</button>'+
+        '<button class="sm danger" data-a="del" data-i="'+o.i+'">Delete</button></div></div>';
+    }).join("");
+  }
+  $("list").onclick=function(ev){
+    var b=ev.target.closest("button");if(!b)return;
+    var i=+b.dataset.i,x=ledger[i];if(!x)return;
+    var a=b.dataset.a;
+    if(a==="copy")copy(x.key);
+    else if(a==="copyl")copy("Name: "+x.name+"\nKey: "+x.key);
+    else if(a==="rev"){x.revoked=!x.revoked;save();render();toast(x.revoked?"Revoke mark kiya":"Mark hata diya");}
+    else if(a==="del"){if(confirm(x.name+" ki entry delete karu?")){ledger.splice(i,1);save();render();}}
+  };
+
+  // export / import (keys.csv jaisa: name,key,created,exp[,revoked])
+  $("exp").onclick=function(){
+    var csv=ledger.map(function(x){return [x.name.replace(/[,\n]/g," "),x.key,x.created,x.exp,x.revoked?1:0].join(",");}).join("\n")+"\n";
+    var blob=new Blob([csv],{type:"text/csv"});var u=URL.createObjectURL(blob);
+    var a=document.createElement("a");a.href=u;a.download="keys.csv";document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(u);},2000);
+  };
+  $("imp").onclick=function(){$("file").click();};
+  $("file").onchange=function(){
+    var f=$("file").files[0];if(!f)return;
+    var rd=new FileReader();
+    rd.onload=function(){
+      var add=0,have={};ledger.forEach(function(x){have[x.key]=1;});
+      String(rd.result).split(/\r?\n/).forEach(function(line){
+        var p=line.split(",");if(p.length<4)return;
+        var k=p[1].trim(),c=+p[2],e=+p[3];
+        if(!k||!(e>0)||have[k])return;
+        ledger.push({name:p[0].trim(),key:k,created:c||0,exp:e,revoked:p[4]==="1"});have[k]=1;add++;
+      });
+      ledger.sort(function(a,b){return b.created-a.created;});
+      save();render();toast(add+" keys import hui");$("file").value="";
+    };
+    rd.readAsText(f);
+  };
+
+  /* themes (website jaise) */
+  var TH={Aurora:["#8b6cff","#38d9ff","#ff7ad9","#ffc66b"],Sunset:["#ff5f6d","#ff9a5c","#ffd36b","#ff6bd6"],Emerald:["#2dffa0","#38e8ff","#b6ff5c","#4d8bff"],Mono:["#ffffff","#9a9aa6","#e6e6ee","#6b6b76"]};
+  function theme(n){TH[n].forEach(function(c,i){document.documentElement.style.setProperty("--a"+(i+1),c);});
+    Array.prototype.forEach.call($("dk").children,function(b){b.classList.toggle("a",b.dataset.n===n);});sset("zownium_key_theme",n);}
+  Object.keys(TH).forEach(function(n){var b=document.createElement("button");b.dataset.n=n;b.title=n;
+    b.style.cssText="background:conic-gradient("+TH[n].join(",")+","+TH[n][0]+");--s1:"+TH[n][0];b.onclick=function(){theme(n);};$("dk").appendChild(b);});
+  theme(TH[sget("zownium_key_theme")]?sget("zownium_key_theme"):"Aurora");
+
+  render();
+  // live countdown: sirf text badalta hai, list rebuild nahi (taaki buttons click ho sakein)
+  setInterval(function(){
+    var n=nowSec(),done=false;
+    Array.prototype.forEach.call(document.querySelectorAll(".badge[data-exp]"),function(b){
+      var e=+b.dataset.exp;if(e<=n)done=true;else b.textContent=leftText(e,n);
+    });
+    if(done)render();
+  },1000);
+})();
+</script>
+</body>
+</html>
