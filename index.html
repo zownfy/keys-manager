@@ -89,6 +89,9 @@ button.danger{background:transparent;border-color:color-mix(in srgb,var(--bad) 6
 .acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .note{font-size:13px;color:var(--mut);background:rgba(255,255,255,.04);border:1px solid var(--ln);border-radius:18px;padding:12px 14px;margin-top:14px}
 .note b{color:var(--fg)}
+.mt{font-size:11px;letter-spacing:.12em;padding:3px 9px;border-radius:99px;border:1px solid var(--ln);margin-left:8px;vertical-align:2px;white-space:nowrap}
+.mt.sh{color:var(--a2);border-color:color-mix(in srgb,var(--a2) 50%,transparent)}
+.mt.on1{color:var(--a3);border-color:color-mix(in srgb,var(--a3) 50%,transparent)}
 .empty{text-align:center;color:var(--mut);padding:30px 0}
 .toast{white-space:nowrap;position:fixed;left:50%;bottom:90px;transform:translate3d(-50%,30px,0);padding:10px 18px;border-radius:99px;opacity:0;transition:opacity .4s,transform .4s var(--e);pointer-events:none;z-index:99;font-size:14px;border:1px solid rgba(255,255,255,.14);background:rgba(30,30,40,.7);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
 .toast.show{opacity:1;transform:translate3d(-50%,0,0)}
@@ -175,6 +178,9 @@ input[type=range]{padding:0;height:8px;accent-color:var(--a2);margin-top:14px}in
         </select>
       </div>
     </div>
+    <label style="margin-top:14px">Key type</label>
+    <div class="chips" id="modes" style="margin:0 0 6px"></div>
+    <div class="sub" id="modeNote" style="margin-bottom:6px"></div>
     <button class="full" id="gen"><svg class="ic"><use href="#i-spark"/></svg>Key Generate karo</button>
     <div class="result" id="result">
       <div class="keybig" id="rkey"></div>
@@ -217,12 +223,21 @@ input[type=range]{padding:0;height:8px;accent-color:var(--a2);margin-top:14px}in
       <input type="file" id="file" accept=".csv,text/csv,text/plain" style="display:none">
     </div>
     <div class="note">
-      <b>Revoke ke baare me:</b> client abhi offline check karta hai, to key expire date se pehle
-      sach me band nahi ki ja sakti. "Revoke" sirf yahan list me mark karta hai. Asli revoke ke liye
-      client me ek online check lagana padega.
+      <b>Once key ke baare me:</b> key ke andar sirf "Once" ka flag hota hai. Ek time pe ek hi player wali
+      limit client offline check nahi kar sakta, uske liye ek chhota server chahiye jo har key ka session yaad rakhe.
     </div>
-    <details style="margin-top:12px"><summary>Secret (client ke Auth.java wala hi hona chahiye)</summary>
-      <input id="secret" style="margin-top:8px" autocomplete="off">
+    <div class="note">
+      <b>Revoke ke baare me:</b> Server URL + Admin token niche daalo, to Revoke/Un-revoke/Kick asli me server pe lagega
+      (player ka game heartbeat pe band ho jayega). Server set nahi hai to sirf is list me mark hota hai.
+    </div>
+    <details style="margin-top:12px" id="srvBox"><summary>Server (URL + Admin token)</summary>
+      <input id="srvUrl" style="margin-top:8px" placeholder="https://your-server.onrender.com" autocomplete="off" autocapitalize="off">
+      <input id="srvTok" type="password" style="margin-top:8px" placeholder="ADMIN_TOKEN" autocomplete="off">
+      <div class="acts"><button class="sm ghost" id="srvTest">Test connection</button><button class="sm ghost" id="srvSess">Live sessions</button></div>
+      <div class="sub" id="srvOut" style="margin-top:8px;white-space:pre-wrap;word-break:break-all"></div>
+    </details>
+    <details style="margin-top:12px"><summary>Secret (server ke SECRET jaisa hi hona chahiye)</summary>
+      <input id="secret" type="password" style="margin-top:8px" placeholder="Yahan apna secret paste karo (sirf is device me save hota hai)" autocomplete="off">
     </details>
   </div>
 </div>
@@ -231,7 +246,7 @@ input[type=range]{padding:0;height:8px;accent-color:var(--a2);margin-top:14px}in
 
 <script>
 //CORE_START
-var DEFAULT_SECRET = "51d4715c2f82072b9f15bba9d49e1d1aa48ffc92cc12e442";
+var DEFAULT_SECRET = ""; /* secret ab file me nahi hai: manager ke "Secret" box me apne device pe daalo */
 var EPOCH = 1735689600;
 var B32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
@@ -295,30 +310,34 @@ function randBytes(n){
 }
 
 /* expSec = absolute expiry, unix seconds */
-function makeKey(expSec, secret){
+function makeKey(expSec, secret, once){
   var minutes=Math.floor((expSec-EPOCH)/60);
+  if(once)minutes=(minutes|0x80000000)>>>0; /* bit31 = ONCE flag (old keys = 0 = SHARED) */
   var body=[minutes>>>24&255,minutes>>>16&255,minutes>>>8&255,minutes&255].concat(randBytes(2));
   var sig=hmac256(utf8(secret||DEFAULT_SECRET),body).slice(0,6);
   var s=b32enc(body.concat(sig));
   return [s.slice(0,5),s.slice(5,10),s.slice(10,15),s.slice(15,20)].join("-");
 }
 
-/* returns expiry unix seconds, or -1 if invalid (same rules as Auth.verify) */
-function verifyKey(raw,secret){
+/* returns {exp,once} or null if invalid */
+function decodeKey(raw,secret){
   var s=String(raw||"").toUpperCase().replace(/[- ]/g,"");
-  if(s.length!==20)return -1;
+  if(s.length!==20)return null;
   var acc=0,bits=0,b=[];
   for(var i=0;i<20&&b.length<12;i++){
-    var v=B32.indexOf(s[i]);if(v<0)return -1;
+    var v=B32.indexOf(s[i]);if(v<0)return null;
     acc=((acc<<5)|v)&0xffff;bits+=5;
     if(bits>=8){bits-=8;b.push((acc>>bits)&255);}
   }
   var sig=hmac256(utf8(secret||DEFAULT_SECRET),b.slice(0,6));
   var diff=0;for(i=0;i<6;i++)diff|=sig[i]^b[6+i];
-  if(diff)return -1;
-  var minutes=b[0]*16777216+b[1]*65536+b[2]*256+b[3];
-  return EPOCH+minutes*60;
+  if(diff)return null;
+  var once=(b[0]&128)!==0;
+  var minutes=(b[0]&127)*16777216+b[1]*65536+b[2]*256+b[3];
+  return {exp:EPOCH+minutes*60,once:once};
 }
+/* returns expiry unix seconds, or -1 if invalid (same rules as Auth.verify) */
+function verifyKey(raw,secret){var d=decodeKey(raw,secret);return d?d.exp:-1;}
 
 function leftText(expSec,nowSec){
   var r=Math.floor(expSec-nowSec);
@@ -342,7 +361,8 @@ function leftText(expSec,nowSec){
 
   var ledger=[];try{ledger=JSON.parse(sget(STORE)||"[]");}catch(e){ledger=[];}
   var secret=sget(SKEY)||DEFAULT_SECRET;
-  var filter="all", lastKey=null, lastName="";
+  ledger.forEach(function(x){if(x.once===undefined){var d=decodeKey(x.key,secret);x.once=d?d.once:false;}});
+  var filter="all", lastKey=null, lastName="", mode="shared";
   var UNIT={m:60,h:3600,d:86400,w:604800};
 
   /* ===== SOUND (WebAudio synth, no files) ===== */
@@ -454,6 +474,32 @@ function leftText(expSec,nowSec){
     $("tabs").appendChild(b);
   });
 
+  var MN={shared:"Ek key, expiry tak jitne chaho utne player login kar sakte hain.",once:"Ek time pe sirf ek player. Doosra same key use kare to tab tak nahi chalegi jab tak pehla band na ho. (server chahiye, neeche note dekho)"};
+  function setMode(m){mode=m;Array.prototype.forEach.call($("modes").children,function(b){b.classList.toggle("on",b.dataset.m===m);});$("modeNote").textContent=MN[m];}
+  [["shared","Shared"],["once","Once"]].forEach(function(o){var b=document.createElement("button");b.className="chip";b.textContent=o[1];b.dataset.m=o[0];b.onclick=function(){setMode(o[0]);};$("modes").appendChild(b);});
+  setMode("shared");
+  var SURL="zownium_srv_url_v1",STOK="zownium_srv_tok_v1";
+  function srvUrl(){return (sget(SURL)||"").replace(/\/+$/,"");}
+  function srvOn(){return !!(srvUrl()&&sget(STOK));}
+  function srv(path,body){
+    return fetch(srvUrl()+path,{method:body===undefined?"GET":"POST",headers:{"Content-Type":"application/json","x-admin-token":sget(STOK)||""},body:body===undefined?undefined:JSON.stringify(body)})
+      .then(function(r){return r.json();});
+  }
+  $("srvUrl").value=sget(SURL)||"";$("srvTok").value=sget(STOK)||"";
+  $("srvUrl").onchange=function(){sset(SURL,$("srvUrl").value.trim());toast("Server URL save hua");};
+  $("srvTok").onchange=function(){sset(STOK,$("srvTok").value.trim());toast("Token save hua");};
+  $("srvTest").onclick=function(){
+    if(!srvOn()){$("srvOut").textContent="Pehle URL aur token daalo.";return;}
+    $("srvOut").textContent="Check ho raha hai...";
+    srv("/admin/sessions").then(function(r){$("srvOut").textContent=r.ok?"Connected. Revoked keys: "+r.revoked+", live sessions: "+r.sessions.length:"Error: "+(r.error||"?");})
+      .catch(function(){$("srvOut").textContent="Server tak nahi pahunch paya (URL galat ya server band).";});
+  };
+  $("srvSess").onclick=function(){
+    if(!srvOn()){$("srvOut").textContent="Pehle URL aur token daalo.";return;}
+    srv("/admin/sessions").then(function(r){
+      $("srvOut").textContent=r.ok?(r.sessions.length?r.sessions.map(function(s){return s.key+"  "+(s.player||"-")+"  "+s.secondsAgo+"s pehle";}).join("\n"):"Abhi koi Once session active nahi."):"Error: "+(r.error||"?");
+    }).catch(function(){$("srvOut").textContent="Server tak nahi pahunch paya.";});
+  };
   $("secret").value=secret;
   $("secret").onchange=function(){var v=$("secret").value.trim();if(v){secret=v;sset(SKEY,v);toast("Secret save hua");SFX.ok();}};
 
@@ -462,14 +508,17 @@ function leftText(expSec,nowSec){
     var amt=parseInt($("amt").value,10);
     if(!name){toast("Naam daalo");SFX.err();$("name").focus();return;}
     if(!(amt>0)){toast("Duration sahi daalo");SFX.err();return;}
+    if(!secret){toast("Pehle neeche Secret box me secret daalo");SFX.err();var sd=document.querySelector("#secret").parentNode;sd.open=true;sd.scrollIntoView({behavior:"smooth",block:"center"});$("secret").focus();return;}
     var created=nowSec(), exp=created+amt*UNIT[$("unit").value];
-    var key=makeKey(exp,secret);
-    if(verifyKey(key,secret)!==Math.floor((exp-EPOCH)/60)*60+EPOCH){toast("Internal error, secret check karo");SFX.err();return;}
-    ledger.unshift({name:name,key:key,created:created,exp:exp,revoked:false});
+    var once=mode==="once";
+    var key=makeKey(exp,secret,once);
+    var dk=decodeKey(key,secret);
+    if(!dk||dk.exp!==Math.floor((exp-EPOCH)/60)*60+EPOCH||dk.once!==once){toast("Internal error, secret check karo");SFX.err();return;}
+    ledger.unshift({name:name,key:key,created:created,exp:exp,revoked:false,once:once});
     save();lastKey=key;lastName=name;
     $("result").classList.add("show");
     scramble($("rkey"),key);
-    $("rmeta").textContent=name+" · expires "+fmtDate(exp)+" · "+leftText(exp,nowSec());
+    $("rmeta").textContent=name+" · "+(once?"ONCE":"SHARED")+" · expires "+fmtDate(exp)+" · "+leftText(exp,nowSec());
     var r=$("gen").getBoundingClientRect();burst(ev.clientX||r.left+r.width/2,ev.clientY||r.top);
     SFX.ok();
     render(true);
@@ -494,12 +543,13 @@ function leftText(expSec,nowSec){
       var x=o.x,s=status(x);
       var badge=s==="act"?'<span class="badge b-ok" data-exp="'+x.exp+'">'+leftText(x.exp,nowSec())+'</span>':
                 s==="exp"?'<span class="badge b-exp">EXPIRED</span>':'<span class="badge b-rev">REVOKED</span>';
-      return '<div class="item'+(an&&n<8?' in':'')+'" style="animation-delay:'+n*45+'ms"><div class="top"><div class="name">'+esc(x.name)+'</div>'+badge+'</div>'+
+      return '<div class="item'+(an&&n<8?' in':'')+'" style="animation-delay:'+n*45+'ms"><div class="top"><div class="name">'+esc(x.name)+'<span class="mt '+(x.once?'on1':'sh')+'">'+(x.once?'ONCE':'SHARED')+'</span></div>'+badge+'</div>'+
         '<div class="k">'+esc(x.key)+'</div>'+
         '<div class="meta" style="margin:0">Bani: '+fmtDate(x.created)+' · Expiry: '+fmtDate(x.exp)+'</div>'+(s==="act"?'<div class="bar"><i data-c="'+x.created+'" data-e="'+x.exp+'" style="--p:'+pr(x.created,x.exp)+'"></i></div>':'')+
         '<div class="acts"><button class="sm" data-a="copy" data-i="'+o.i+'">'+ic("copy")+'Copy key</button>'+
         '<button class="sm ghost" data-a="copyl" data-i="'+o.i+'">'+ic("user")+'Name + Key</button>'+
-        '<button class="sm ghost" data-a="rev" data-i="'+o.i+'">'+ic("ban")+(x.revoked?"Un-revoke":"Revoke mark")+'</button>'+
+        '<button class="sm ghost" data-a="rev" data-i="'+o.i+'">'+ic("ban")+(x.revoked?"Un-revoke":(srvOn()?"Revoke":"Revoke mark"))+'</button>'+
+        (x.once&&srvOn()?'<button class="sm ghost" data-a="kick" data-i="'+o.i+'">'+ic("ban")+'Kick</button>':"")+
         '<button class="sm danger" data-a="del" data-i="'+o.i+'">'+ic("trash")+'Delete</button></div></div>';
     }).join("");
   }
@@ -509,12 +559,21 @@ function leftText(expSec,nowSec){
     var a=b.dataset.a;
     if(a==="copy")copy(x.key);
     else if(a==="copyl")copy("Name: "+x.name+"\nKey: "+x.key);
-    else if(a==="rev"){x.revoked=!x.revoked;save();render();toast(x.revoked?"Revoke mark kiya":"Mark hata diya");SFX.on();}
+    else if(a==="rev"){
+      var want=!x.revoked;
+      if(srvOn()){
+        srv(want?"/admin/revoke":"/admin/unrevoke",{key:x.key}).then(function(r){
+          if(r&&r.ok){x.revoked=want;save();render();toast(want?"Server pe revoke ho gaya":"Server pe un-revoke ho gaya");SFX.on();}
+          else{toast("Server error: "+((r&&r.error)||"?"));SFX.err();}
+        }).catch(function(){toast("Server nahi mila, kuch change nahi hua");SFX.err();});
+      }else{x.revoked=want;save();render();toast(want?"Revoke mark kiya (sirf list me)":"Mark hata diya");SFX.on();}
+    }
+    else if(a==="kick"){srv("/admin/kick",{key:x.key}).then(function(r){toast(r&&r.ok?"Session kick ho gaya":"Server error");}).catch(function(){toast("Server nahi mila");});}
     else if(a==="del"){if(confirm(x.name+" ki entry delete karu?")){var it=b.closest(".item");SFX.del();vib(30);if(it)it.classList.add("out");setTimeout(function(){ledger.splice(i,1);save();render();},it?330:0);}}
   };
 
   $("exp").onclick=async function(){
-    var csv=ledger.map(function(x){return [x.name.replace(/[,\n]/g," "),x.key,x.created,x.exp,x.revoked?1:0].join(",");}).join("\n")+"\n";
+    var csv=ledger.map(function(x){return [x.name.replace(/[,\n]/g," "),x.key,x.created,x.exp,x.revoked?1:0,x.once?1:0].join(",");}).join("\n")+"\n";
     try{
       var d=window.claude&&window.claude.use?await window.claude.use("downloads"):null;
       if(d){await d.save({filename:"keys.csv",data:csv});toast("Saved");SFX.ok();return;}
@@ -535,7 +594,7 @@ function leftText(expSec,nowSec){
         var p=line.split(",");if(p.length<4)return;
         var k=p[1].trim(),c=+p[2],e=+p[3];
         if(!k||!(e>0)||have[k])return;
-        ledger.push({name:p[0].trim(),key:k,created:c||0,exp:e,revoked:p[4]==="1"});have[k]=1;add++;
+        var dd=decodeKey(k,secret);ledger.push({name:p[0].trim(),key:k,created:c||0,exp:e,revoked:p[4]==="1",once:dd?dd.once:p[5]==="1"});have[k]=1;add++;
       });
       ledger.sort(function(a,b){return b.created-a.created;});
       save();render(true);toast(add+" keys import hui");SFX.ok();$("file").value="";
