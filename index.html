@@ -654,7 +654,7 @@ function leftText(expSec,nowSec){
   theme(TH[sget("zownium_key_theme")]?sget("zownium_key_theme"):"Aurora");
 
   /* ===== PASSWORD LOCK ===== */
-  var PH="c91ef235dedfee16e8663d6c5225f4ca68724cdd954520baf0aac63914c50ed3";
+    var PH="0a5d06da3efc82069ceb33a3b0463fd7ee55b31e4b014b952e52fdf209656ab8";
   function hx(b){return b.map(function(x){return ("0"+x.toString(16)).slice(-2);}).join("");}
   function perfCheck(){var n=0,t0=0;(function f(t){if(!t0)t0=t;if(++n<90)requestAnimationFrame(f);else if((t-t0)/89>24)document.documentElement.classList.add("lite");})(performance.now());}
   function tryPw(){
